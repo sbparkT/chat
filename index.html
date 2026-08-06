@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>고전 스네이크 게임</title>
+  <style>
+    body {
+      background-color: #1e1e2e;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      color: #a6e3a1;
+    }
+
+    #score-board {
+      font-size: 1.3rem;
+      margin-bottom: 15px;
+      font-weight: bold;
+    }
+
+    canvas {
+      border: 3px solid #a6e3a1;
+      background-color: #181825;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      border-radius: 8px;
+    }
+
+    .instructions {
+      margin-top: 15px;
+      font-size: 0.95rem;
+      color: #bac2de;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🐍 스네이크 게임</h1>
+  <div id="score-board">점수: <span id="score">0</span></div>
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <div class="instructions">방향키(← ↑ → ↓)를 눌러 게임을 시작하세요!</div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreElement = document.getElementById("score");
+
+    const gridSize = 20; // 그리드 한 칸의 크기 (px)
+    const tileCount = canvas.width / gridSize; // 칸 개수 (20x20)
+
+    let snake = [{ x: 10, y: 10 }];
+    let food = { x: 15, y: 15 };
+    let dx = 0;
+    let dy = 0;
+    let score = 0;
+    let gameLoopTimeout = null;
+    let gameStarted = false;
+
+    // 키보드 입력 이벤트 등록
+    document.addEventListener("keydown", changeDirection);
+
+    // 메인 게임 루프
+    function main() {
+      if (hasGameEnded()) {
+        alert(`게임 오버! 💥\n최종 점수: ${score}점`);
+        resetGame();
+        return;
+      }
+
+      gameLoopTimeout = setTimeout(function onTick() {
+        clearCanvas();
+        drawFood();
+        advanceSnake();
+        drawSnake();
+        main();
+      }, 100); // 속도 조절 (밀리초 단위, 작을수록 빠름)
+    }
+
+    // 캔버스 초기화
+    function clearCanvas() {
+      ctx.fillStyle = "#181825";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 뱀 그리기
+    function drawSnake() {
+      snake.forEach((part, index) => {
+        // 머리는 밝은 초록, 몸통은 연한 초록
+        ctx.fillStyle = index === 0 ? "#a6e3a1" : "#94e2d5";
+        ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+      });
+    }
+
+    // 먹이 그리기
+    function drawFood() {
+      ctx.fillStyle = "#f38ba8";
+      ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+    }
+
+    // 뱀 이동 처리
+    function advanceSnake() {
+      const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+      snake.unshift(head);
+
+      // 먹이를 먹었는지 확인
+      const hasEatenFood = snake[0].x === food.x && snake[0].y === food.y;
+      if (hasEatenFood) {
+        score += 10;
+        scoreElement.innerText = score;
+        generateFood();
+      } else {
+        snake.pop(); // 먹지 않았다면 꼬리 잘라내기
+      }
+    }
+
+    // 랜덤 위치에 먹이 생성
+    function generateFood() {
+      food.x = Math.floor(Math.random() * tileCount);
+      food.y = Math.floor(Math.random() * tileCount);
+
+      // 뱀 몸통 위에 먹이가 생기지 않도록 재귀 호출
+      snake.forEach(part => {
+        if (part.x === food.x && part.y === food.y) {
+          generateFood();
+        }
+      });
+    }
+
+    // 충돌 체크 (벽이나 자기 자신)
+    function hasGameEnded() {
+      // 자기 몸에 부딪혔는지 확인
+      for (let i = 4; i < snake.length; i++) {
+        if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+      }
+
+      // 벽에 부딪혔는지 확인
+      const hitLeftWall = snake[0].x < 0;
+      const hitRightWall = snake[0].x >= tileCount;
+      const hitTopWall = snake[0].y < 0;
+      const hitBottomWall = snake[0].y >= tileCount;
+
+      return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+    }
+
+    // 방향키 제어
+    function changeDirection(event) {
+      const LEFT_KEY = 37;
+      const RIGHT_KEY = 39;
+      const UP_KEY = 38;
+      const DOWN_KEY = 40;
+
+      const keyPressed = event.keyCode;
+      const goingUp = dy === -1;
+      const goingDown = dy === 1;
+      const goingRight = dx === 1;
+      const goingLeft = dx === -1;
+
+      // 게임 시작 전 아무 방향키나 누르면 시작
+      if (!gameStarted && [LEFT_KEY, RIGHT_KEY, UP_KEY, DOWN_KEY].includes(keyPressed)) {
+        gameStarted = true;
+        main();
+      }
+
+      // 반대 방향으로 즉시 회전하는 것 방지
+      if (keyPressed === LEFT_KEY && !goingRight) {
+        dx = -1;
+        dy = 0;
+      }
+      if (keyPressed === UP_KEY && !goingDown) {
+        dx = 0;
+        dy = -1;
+      }
+      if (keyPressed === RIGHT_KEY && !goingLeft) {
+        dx = 1;
+        dy = 0;
+      }
+      if (keyPressed === DOWN_KEY && !goingUp) {
+        dx = 0;
+        dy = 1;
+      }
+    }
+
+    // 게임 리셋
+    function resetGame() {
+      clearTimeout(gameLoopTimeout);
+      snake = [{ x: 10, y: 10 }];
+      food = { x: 15, y: 15 };
+      dx = 0;
+      dy = 0;
+      score = 0;
+      scoreElement.innerText = score;
+      gameStarted = false;
+      
+      clearCanvas();
+      drawSnake();
+      drawFood();
+    }
+
+    // 초기 화면 그리기
+    clearCanvas();
+    drawSnake();
+    drawFood();
+  </script>
+</body>
+</html>
